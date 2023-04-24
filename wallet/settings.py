@@ -24,7 +24,9 @@ SECRET_KEY = 'msb4(s84*w#oz@mu+#p#2#&g%@ocz2!8a%1g435n0v(9spio55'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '66.42.55.52'
+]
 
 # Application definition
 
@@ -93,10 +95,10 @@ REST_FRAMEWORK = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'wallet',
+        'NAME': 'postgres',
         'USER': 'postgres',
         'PASSWORD': 'admin',
-        'HOST': 'localhost',
+        'HOST': 'databse',
         'PORT': '5432',
     }
 }

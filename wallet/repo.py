@@ -117,18 +117,23 @@ class DrawQuotaRepo(object):
         with connection.cursor() as cursor:
             cursor.execute(
                 f"""
-                SELECT game_name                                   as game,
-                       CONCAT(virtual_currency, ' - ', real_price) as package,
-                       draw_quota.amount                           as amount,
-                       draw_quota.amount_used                      as amount_used,
-                       draw_quota.identify                          as identify,
-                       draw_quota.game_id                          as game_id
-                FROM draw_quota
-                         INNER JOIN product_data ON product_data.identify = draw_quota.identify AND draw_quota.user_id = '{username}'
-                """
+                SELECT product_data.game_name                                                     as game,
+                       CONCAT(product_data.virtual_currency, ' - ', product_data.real_price)      as package,
+                       CASE WHEN draw_quota.id IS NOT NULL THEN draw_quota.amount ELSE 0 END      as amount,
+                       CASE WHEN draw_quota.id IS NOT NULL THEN draw_quota.amount_used ELSE 0 END as amount_used,
+                       draw_quota.identify                                                        as identify,
+                       draw_quota.game_id                                                         as game_id,
+                       product_data.identify                                                      as product_data_game_identify,
+                       product_data.game_id                                                       as product_data_game_id
+                FROM product_data
+                         LEFT JOIN draw_quota
+                                   ON product_data.game_id = draw_quota.game_id AND product_data.identify = draw_quota.identify AND
+                                      draw_quota.user_id = '{username}'
+                                          """
             )
             result['quota'] = dictfetchall(cursor)
-            game_and_package = tuple((i['game_id'], i['identify']) for i in result['quota'])
+            game_and_package = tuple(
+                (i['product_data_game_id'], i['product_data_game_identify']) for i in result['quota'])
 
             remain_amount = f"""select distinct(game_id, identify),
                                    Count(*) over (partition by game_id, identify) as remain_amount,
@@ -144,7 +149,7 @@ class DrawQuotaRepo(object):
             for k in result['quota']:
                 k['remain_amount'] = 0
                 for i in remain_amount:
-                    if k['game_id'] == i['game_id'] and k['identify'] == i['identify']:
+                    if k['product_data_game_id'] == i['game_id'] and k['product_data_game_identify'] == i['identify']:
                         k['remain_amount'] = i['remain_amount']
 
             cursor.execute(
@@ -179,9 +184,18 @@ class DrawQuotaRepo(object):
             if remain_tokens < params['newAmount']:
                 return 400, {'msg': f'Remain token not enough, remain: {remain_tokens}'}
 
-            draw_quota = DrawQuota.objects.get(game_id=params['game_id'],
-                                               identify=params['identify'],
-                                               user_id=params['userId'])
+            draw_quota = DrawQuota.objects.filter(game_id=params['game_id'],
+                                                  identify=params['identify'],
+                                                  user_id=params['userId'])
+            if draw_quota.exists():
+                draw_quota = draw_quota[0]
+            else:
+                # Create obj if not exist
+                draw_quota = DrawQuota.objects.create(game_id=params['game_id'],
+                                                      identify=params['identify'],
+                                                      user_id=params['userId'],
+                                                      amount=0,
+                                                      amount_used=0)
             # reset to 0
             if params['newAmount'] < 0 and draw_quota.amount < abs(params['newAmount']):
                 params['newAmount'] = draw_quota.amount
@@ -192,8 +206,10 @@ class DrawQuotaRepo(object):
             DrawQuotaRepo.lock_tokens(params, 'revoke' if params['newAmount'] < 0 else 'assign')
 
             return 200, {'msg': 'Update amount successfully!'}
+
         except ObjectDoesNotExist:
             return 200, {"msg": 'DrawQuota does not exist'}
+
 
     @staticmethod
     def update_products(params):
@@ -238,6 +254,7 @@ class DrawQuotaRepo(object):
                 receipt.assigned_user = params['userId']
 
         django_bulk_update.helper.bulk_update(receipts)
+
 
     @staticmethod
     def insert_history_draw_quota(params):
@@ -286,6 +303,20 @@ class ProductDataRepo:
         except Exception as ex:
             return 400, {'msg': ex}
         return 200, {'msg': 'Update success fully!'}
+
+    @staticmethod
+    def delete_package(data):
+        try:
+            print('about to delete')
+            ProductData.objects.filter(identify=data['identify'], game_id=data['game_id']).delete()
+            Receipt.objects.filter(identify=data['identify'], game_id=data['game_id']).delete()
+            DrawQuota.objects.filter(identify=data['identify'], game_id=data['game_id']).delete()
+        except Exception as ex:
+            print('Exception----')
+            import traceback
+            traceback.print_exc()
+            return 400, {'msg': ex}
+        return 200, {'msg': 'Deleted success fully!'}
 
 
 class ReceiptRepo:
@@ -366,6 +397,7 @@ class ReceiptRepo:
                 SELECT product_data.game_name,
                        CONCAT(product_data.virtual_currency, ' - ', product_data.real_price) as package,
                        count(*)                                                              as total,
+                       count(case when receipt.assigned_user is not null then 1 end)         as assigned,
                        count(case when receipt.used = False then 1 end)                      as not_used,
                        count(case when receipt.used = True then 1 end)                       as used
                 FROM product_data
@@ -376,6 +408,7 @@ class ReceiptRepo:
                 SELECT product_data.game_name,
                        CONCAT(product_data.virtual_currency, ' - ', product_data.real_price) as package,
                        count(*)                                                              as total,
+                       count(case when receipt.assigned_user is not null then 1 end)         as assigned,
                        count(case when receipt.used = False then 1 end)                      as not_used,
                        count(case when receipt.used = True then 1 end)                       as used
                 FROM product_data

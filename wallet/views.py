@@ -80,6 +80,11 @@ class ProductDataWrapper(APIView):
 
     def post(self, request, format=None, *args, **kwargs):
         data = request.data
+
+        if data.get('type') == 'delete_package':
+            status, res = ProductDataRepo.delete_package(data.get('data'))
+            return Response(res, status=status)
+
         if data.get('type') == 'updatePackage':
             status, res = ProductDataRepo.update_packages(data['data'])
         else:

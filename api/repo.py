@@ -2,6 +2,27 @@ from django.db import transaction, IntegrityError
 
 from wallet.models import ProductData, Receipt, OrderInfo
 from wallet.repo import DrawQuotaRepo
+from datetime import datetime
+
+
+def build_common_response(data='OK', message='OK'):
+    now = datetime.now()
+    formatted_date = now.strftime('%a %b %d, %Y %H:%M')
+
+    return {
+        'code': 200,
+        'data': data,
+        'message': message,
+        'serviceTime': formatted_date
+    }
+
+
+def build_failed_response(status_code, message):
+    result = build_common_response()
+    result['code'] = status_code
+    result['message'] = message
+
+    return result
 
 
 class SkuRepo:
@@ -10,6 +31,7 @@ class SkuRepo:
         'price', 'price_amount_micros', 'price_currency_code',
         'productId', 'skuDetailsToken', 'title', 'type'
     ]
+
     @staticmethod
     def is_params_valid(params):
         return set(params.keys()) - set(SkuRepo.insert_params) != set()
@@ -17,7 +39,7 @@ class SkuRepo:
     @staticmethod
     def get_sku(params):
         if not params.get('packageName'):
-            return 400, {'msg': 'Invalid Getsku params'}
+            return 400, build_failed_response(message='Invalid Getsku params')
         result = ProductData.objects.filter(game_id=params.get('packageName'))
         result = [
             {'description': i.description,
@@ -32,7 +54,9 @@ class SkuRepo:
              'type': i.type,
              } for i in result
         ]
-        return 200, {"data": result, "message": 'OK'}
+        print('here--------')
+        print(build_common_response(result, 'OK'))
+        return 200, build_common_response(result, 'OK')
 
     @staticmethod
     def push_sku(params):
@@ -62,9 +86,10 @@ class SkuRepo:
             ProductData.objects.create(
                 **insert_obj
             )
-            return 200, {'msg': 'Insert successfully'}
+            return 200, build_common_response()
         except Exception as ex:
-            return 400, {'msg': f'Push failed due to internal error {str(ex)}'}
+            return 400, build_failed_response(-200, f'Push failed due to internal error {str(ex)}')
+
 
 class TokenRepo:
     @staticmethod
@@ -72,9 +97,9 @@ class TokenRepo:
         if not params.get('packageName') and params.get('productId'):
             return 400, {'msg': ' invalid gettoken request params'}
 
-        tokens = Receipt.objects.filter(game_id=params['game_id'],
-                                        identify=params['identify'],
-                                        assigned_user=user.id,
+        tokens = Receipt.objects.filter(game_id=params['packageName'],
+                                        identify=params['productId'],
+                                        assigned_user=user.username,
                                         used=False)
         if tokens.count() <= 0:
             return 400, {'msg': 'Not enough token'}
@@ -84,29 +109,29 @@ class TokenRepo:
             with transaction.atomic():
                 order = {
                     "receipt_id": token.id,
-                    "user_id": user.id,
+                    "user_id": user.username,
                     "device_number": '123',
                     "status": '3'
 
                 }
                 OrderInfo.objects.create(**order)
                 token.used = True
-
+                token.save()
+                DrawQuotaRepo.consumeToken(params['packageName'], params['productId'], user.username)
         except Exception as ex:
-            return 400, {'message': f'Internal error{ex}'}
-        return 200, {
-            "data": [
-                {"mOriginalJson": token.token,
-                 "mSignature": token.signature,
-                 "orderId": token.order_id,
-                 "packageName": token.game_id,
-                 "sku": token.identify,
-                 }
-            ]
-        }
+            return 400, build_failed_response(f'Internal error{ex})')
+        return 200, build_common_response([
+            {"mOriginalJson": token.token,
+             "mSignature": token.signature,
+             "orderId": token.order_id,
+             "packageName": token.game_id,
+             "sku": token.identify,
+             }
+        ])
 
     @staticmethod
     def push_token(params, user):
+
         if {'packageName', 'sku', 'mOriginalJson', 'mSignature', 'orderId'} - params.keys() != set():
             return 400, {'message': 'invalid pushtoken params'}
 
@@ -119,14 +144,16 @@ class TokenRepo:
             Receipt.objects.create(
                 game_id=params['packageName'],
                 identify=params['sku'],
-                user_id=user.id,
+                user_id=user.username,
                 token=params['mOriginalJson'],
                 signature=params['mSignature'],
-                order_id=params['orderId']
+                order_id=params['orderId'],
+                used=False,
+                assigned_user=None
             )
-            return 200, {'msg': 'Push successfully!'}
+            return 200, build_common_response()
         except Exception as ex:
-            return 400, {'msg': f'Push error {ex}'}
+            return 400, build_failed_response(str(ex))
 
 
 class ProductRepo:
@@ -136,15 +163,13 @@ class ProductRepo:
             return 400, {'msg': 'Invalid params'}
         data = ProductData.objects.filter(game_id=params.get('packageName'), identify=params.get('productId'))
 
-        return 200, {
-            'data': [
-                {
-                    'count': 1,
-                    "game_name": i.game_name,
-                    "packageName": i.game_id,
-                    "price": i.real_price,
-                    "productId": i.identify,
-                    "title": i.virtual_currency
-                } for i in data
-            ]
-        }
+        return 200, build_common_response([
+            {
+                'count': 1,
+                "game_name": i.game_name,
+                "packageName": i.game_id,
+                "price": i.real_price,
+                "productId": i.identify,
+                "title": i.virtual_currency
+            } for i in data
+        ])

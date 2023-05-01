@@ -1,26 +1,26 @@
 from django.urls import path
 
-from api.views import SkuWrapper, TokenWrapper, ExportWrapper
+from api.views import PushSkuWrapper, PushTokenWrapper, GetTokenWrapper, ExportWrapper, GetSkuWrapper
 
 urlpatterns = [
     path(
         "getsku",
-        SkuWrapper.as_view(),
+        GetSkuWrapper.as_view(),
         name="sku",
     ),
     path(
         "pushsku",
-        SkuWrapper.as_view(),
+        PushSkuWrapper.as_view(),
         name="sku",
     ),
     path(
         "push-token",
-        TokenWrapper.as_view(),
+        PushTokenWrapper.as_view(),
         name="token",
     ),
     path(
         "get-token",
-        TokenWrapper.as_view(),
+        GetTokenWrapper.as_view(),
         name="token",
     ),
     path(

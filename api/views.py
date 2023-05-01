@@ -9,14 +9,17 @@ from api.repo import SkuRepo, TokenRepo, ProductRepo
 logger = logging.getLogger(__name__)
 
 
-class SkuWrapper(APIView):
+class GetSkuWrapper(APIView):
     permission_classes = (IsAuthenticated,)
     view_factory = None
-
-    def get(self, request, format=None, *args, **kwargs):
+    def post(self, request, format=None, *args, **kwargs):
         data = request.data
         code, res = SkuRepo.get_sku(data)
         return Response(res, status=code)
+
+class PushSkuWrapper(APIView):
+    permission_classes = (IsAuthenticated,)
+    view_factory = None
 
     def post(self, request, format=None, *args, **kwargs):
         data = request.data
@@ -24,15 +27,19 @@ class SkuWrapper(APIView):
         return Response(res, status=code)
 
 
-class TokenWrapper(APIView):
+class GetTokenWrapper(APIView):
     permission_classes = (IsAuthenticated,)
     view_factory = None
 
-    def get(self, request, format=None, *args, **kwargs):
+    def post(self, request, format=None, *args, **kwargs):
         data = request.data
         user = request.user
         code, res = TokenRepo.get_token(data, user)
         return Response(res, status=code)
+
+class PushTokenWrapper(APIView):
+    permission_classes = (IsAuthenticated,)
+    view_factory = None
 
     def post(self, request, format=None, *args, **kwargs):
         data = request.data
@@ -45,7 +52,7 @@ class ExportWrapper(APIView):
     permission_classes = (IsAuthenticated,)
     view_factory = None
 
-    def get(self, request, format=None, *args, **kwargs):
+    def post(self, request, format=None, *args, **kwargs):
         data = request.data
         code, res = ProductRepo.get_export(data)
         return Response(res, status=code)

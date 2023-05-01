@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token
 
-from api.views import SkuWrapper, TokenWrapper, ExportWrapper
+from api.views import PushSkuWrapper, PushTokenWrapper, ExportWrapper, GetSkuWrapper, GetTokenWrapper
 from wallet.views import ViewSignonWrapper, ViewAuthWrapper, UserWapper, QuotaWrapper, ProductDataWrapper, \
     RecieptWrapper, OrdersWrapper, StorageWrapper, ImportExportWrapper, CustomObtainJSONWebToken
 
@@ -81,7 +81,10 @@ urlpatterns = [
         ImportExportWrapper.as_view(),
         name="export-import",
     ),
+
     path("token/refresh", refresh_jwt_token),
+    path("token/", obtain_jwt_token),
+
     url(r'^api-token-auth/', CustomObtainJSONWebToken.as_view()),
     path(
         "all_users/",
@@ -89,27 +92,27 @@ urlpatterns = [
         name="account-profile",
     ),
     path(
-        "api/getsku",
-        SkuWrapper.as_view(),
+        "backend_api/getsku",
+        GetSkuWrapper.as_view(),
         name="sku",
     ),
     path(
-        "api/pushsku",
-        SkuWrapper.as_view(),
+        "backend_api/pushsku",
+        PushSkuWrapper.as_view(),
         name="sku",
     ),
     path(
-        "api/push-token",
-        TokenWrapper.as_view(),
+        "backend_api/push-token",
+        PushTokenWrapper.as_view(),
         name="token",
     ),
     path(
-        "api/get-token",
-        TokenWrapper.as_view(),
+        "backend_api/get-token",
+        GetTokenWrapper.as_view(),
         name="token",
     ),
     path(
-        "api/getexport",
+        "backend_api/getexport",
         ExportWrapper.as_view(),
         name="export",
     ),

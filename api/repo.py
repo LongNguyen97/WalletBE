@@ -67,7 +67,7 @@ class SkuRepo:
         isExisted = ProductData.objects.filter(game_id=package_name, identify=product_id).count() > 0
 
         if isExisted:
-            return 200, {'msg': 'Product existed!'}
+            return 200, {'msg': 'Product existed !'}
 
         try:
             insert_obj = {

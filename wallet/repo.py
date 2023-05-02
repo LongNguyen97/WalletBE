@@ -1,4 +1,5 @@
 import csv
+import csv
 
 from openpyxl.writer.excel import save_virtual_workbook
 from collections import defaultdict
@@ -152,6 +153,8 @@ class DrawQuotaRepo(object):
                     if k['product_data_game_id'] == i['game_id'] and k['product_data_game_identify'] == i['identify']:
                         k['remain_amount'] = i['remain_amount']
 
+            result['quota'] = [i for i in result['quota'] if i['remain_amount'] > 0 or i['amount'] > 0]
+
             cursor.execute(
                 f"""
                SELECT product_data.game_name                                                as game,
@@ -210,7 +213,6 @@ class DrawQuotaRepo(object):
         except ObjectDoesNotExist:
             return 200, {"msg": 'DrawQuota does not exist'}
 
-
     @staticmethod
     def update_products(params):
         try:
@@ -255,7 +257,6 @@ class DrawQuotaRepo(object):
 
         django_bulk_update.helper.bulk_update(receipts)
 
-
     @staticmethod
     def insert_history_draw_quota(params):
         HistoryQuota.objects.create(
@@ -264,6 +265,15 @@ class DrawQuotaRepo(object):
             user_id=params['userId'],
             amount=params['newAmount'],
         )
+
+    @staticmethod
+    def consumeToken(game_id, identify, user_id):
+        try:
+            draw_quota = DrawQuota.objects.filter(user_id=user_id, game_id=game_id, identify=identify).first()
+            draw_quota.amount_used += 1
+            draw_quota.save()
+        except Exception as ex:
+            print(ex)
 
 
 class ProductDataRepo:
@@ -326,7 +336,7 @@ class ReceiptRepo:
         if params['gameId'] == 'All':
             query = f"""
                          select product_data.game_name,
-                               CONCAT(product_data.virtual_currency, ' - ', product_data.real_price) as name,
+                               CONCAT(product_data.virtual_currency, ' - ', product_data.real_price) as package,
                                count(receipt.id)                                                     as amount
                         from receipt
                                  join product_data on receipt.identify = product_data.identify
@@ -336,7 +346,7 @@ class ReceiptRepo:
         else:
             query = f"""
                          select product_data.game_name,
-                               CONCAT(product_data.virtual_currency, ' - ', product_data.real_price) as name,
+                               CONCAT(product_data.virtual_currency, ' - ', product_data.real_price) as package,
                                count(receipt.id)                                                     as amount
                         from receipt
                                  join product_data on receipt.identify = product_data.identify
@@ -365,7 +375,7 @@ class ReceiptRepo:
                        count(order_info.id)                                                  as amount
                 FROM order_info join receipt on receipt.id = order_info.receipt_id
                          join product_data on receipt.identify = product_data.identify
-                WHERE receipt.user_id = '{params['userId']}'
+                WHERE order_info.user_id = '{params['userId']}'
                 
                       """
         else:
@@ -375,7 +385,7 @@ class ReceiptRepo:
                        count(order_info.id)                                                  as amount
                 FROM order_info join receipt on receipt.id = order_info.receipt_id
                          join product_data on receipt.identify = product_data.identify
-                where receipt.user_id = '{params['userId']}' and product_data.game_id = '{params['gameId']}'
+                where order_info.user_id = '{params['userId']}' and product_data.game_id = '{params['gameId']}'
                       """
             if params.get('identify') and params.get('identify') != 'All':
                 query += f" and product_data.identify = '{params['identify']}'"
